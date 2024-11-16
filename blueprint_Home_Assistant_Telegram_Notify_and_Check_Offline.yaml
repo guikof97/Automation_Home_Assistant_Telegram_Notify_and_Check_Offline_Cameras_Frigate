@@ -1,0 +1,173 @@
+blueprint:
+  name: Notify and Monitor Offline Cameras with Optional Telegram
+  description: Sends notifications on Telegram, the Home Assistant app, and the Home Assistant interface when cameras go offline, with periodic notifications while cameras remain offline. Telegram notifications are optional and will only be sent if the Telegram switch is activated.
+  domain: automation
+  input:
+    cameras:
+      name: Cameras to monitor
+      description: List of cameras to monitor
+      selector:
+        entity:
+          domain: camera
+          multiple: true
+    telegram_enabled:
+      name: Enable Telegram Notifications
+      description: Enable or disable Telegram notifications
+      default: false
+      selector:
+        boolean: {}
+    telegram_chat_id:
+      name: Telegram Chat ID
+      description: Your Telegram chat ID
+      default: ""
+      selector:
+        text: {}
+    notify_enabled:
+      name: Enable App Notifications
+      description: Enable or disable notifications in Home Assistant app
+      default: true
+      selector:
+        boolean: {}
+    persistent_enabled:
+      name: Enable Persistent Notifications
+      description: Enable or disable persistent notifications in Home Assistant interface
+      default: true
+      selector:
+        boolean: {}
+    check_interval:
+      name: Check Interval
+      description: The interval for checking the camera status
+      default: "00:05:00"
+      selector:
+        time: {}
+    initial_delay:
+      name: Initial Delay
+      description: Initial delay to avoid false positives
+      default: "00:01:05"
+      selector:
+        time: {}
+
+trigger:
+  - platform: state
+    entity_id: !input cameras
+    to: "unavailable"
+
+action:
+  - delay: "{{ initial_delay }}"
+
+  - condition: template
+    value_template: >
+      {% set offline_cameras = states.camera | selectattr('state', 'in', ['unavailable', 'offline', 'disconnected']) | list %}
+      {% set offline_cameras_over_1min = offline_cameras | selectattr('last_changed', 'lt', (now() - timedelta(minutes=1))) | list %}
+      {{ offline_cameras_over_1min | length > 0 }}
+
+  - variables:
+      notification_message: >-
+        The following cameras are offline:
+        {% set offline_cameras = states.camera | selectattr('state', 'in', ['unavailable', 'offline', 'disconnected']) | list %}
+        {% set offline_cameras_over_1min = offline_cameras | selectattr('last_changed', 'lt', (now() - timedelta(minutes=1))) | list %}
+        {% for camera in offline_cameras_over_1min %}
+          - *{{ camera.entity_id.split('.')[1].replace('_', ' ') }}*: {{
+           (camera.last_changed | as_datetime | as_local).strftime('%d/%m/%y at %H:%M:%S') }} ({{
+            ((as_timestamp(now()) - as_timestamp(camera.last_changed)) / 60) | round(1) }} min).
+        {% endfor %}
+
+  - choose:
+      - conditions: "{{ telegram_enabled and telegram_chat_id != '' }}"
+        sequence:
+          - service: telegram_bot.send_message
+            data:
+              target: "{{ telegram_chat_id }}"
+              message: "{{ notification_message }}"
+
+  - choose:
+      - conditions: "{{ persistent_enabled }}"
+        sequence:
+          - service: persistent_notification.create
+            data:
+              title: Offline Cameras
+              message: "{{ notification_message | replace('*', '**') }}"
+
+  - choose:
+      - conditions: "{{ notify_enabled }}"
+        sequence:
+          - service: notify.notify
+            data:
+              message: "{{ notification_message | replace('*', '') }}"
+
+  - delay: "{{ check_interval }}"
+
+  - repeat:
+      while:
+        - condition: template
+          value_template: >
+            {% set offline_cameras = states.camera | selectattr('state', 'in', ['unavailable', 'offline', 'disconnected']) | list %}
+            {% set offline_cameras_over_1min = offline_cameras | selectattr('last_changed', 'lt', (now() - timedelta(minutes=1))) | list %}
+            {{ offline_cameras_over_1min | length > 0 }}
+      sequence:
+        - variables:
+            repeated_notification_message: >-
+              The following cameras are still offline:
+              {% set offline_cameras = states.camera | selectattr('state', 'in', ['unavailable', 'offline', 'disconnected']) | list %}
+              {% set offline_cameras_over_1min = offline_cameras | selectattr('last_changed', 'lt', (now() - timedelta(minutes=1))) | list %}
+              {% for camera in offline_cameras_over_1min %}
+                - *{{ camera.entity_id.split('.')[1].replace('_', ' ') }}*: {{
+                 (camera.last_changed | as_datetime | as_local).strftime('%d/%m/%y at %H:%M:%S') }} ({{
+                  ((as_timestamp(now()) - as_timestamp(camera.last_changed)) / 60) | round(1) }} min).
+              {% endfor %}
+
+        - choose:
+            - conditions: "{{ telegram_enabled and telegram_chat_id != '' }}"
+              sequence:
+                - service: telegram_bot.send_message
+                  data:
+                    target: "{{ telegram_chat_id }}"
+                    message: "{{ repeated_notification_message }}"
+
+        - choose:
+            - conditions: "{{ persistent_enabled }}"
+              sequence:
+                - service: persistent_notification.create
+                  data:
+                    title: Offline Cameras (Periodic Check)
+                    message: "{{ repeated_notification_message | replace('*', '**') }}"
+
+        - choose:
+            - conditions: "{{ notify_enabled }}"
+              sequence:
+                - service: notify.notify
+                  data:
+                    message: "{{ repeated_notification_message | replace('*', '') }}"
+
+        - delay: "{{ check_interval }}"
+
+  - choose:
+      - conditions: "{{ notify_enabled }}"
+        sequence:
+          - service: notify.notify
+            data:
+              message: "All cameras are online."
+
+  - choose:
+      - conditions: "{{ telegram_enabled and telegram_chat_id != '' }}"
+        sequence:
+          - service: telegram_bot.send_message
+            data:
+              target: "{{ telegram_chat_id }}"
+              message: "All cameras are *online*."
+
+  - choose:
+      - conditions: "{{ persistent_enabled }}"
+        sequence:
+          - service: persistent_notification.create
+            data:
+              title: Operational State Online
+              message: "All cameras are **online**."
+
+variables:
+  telegram_chat_id: !input telegram_chat_id
+  check_interval: !input check_interval
+  initial_delay: !input initial_delay
+  notify_enabled: !input notify_enabled
+  persistent_enabled: !input persistent_enabled
+  telegram_enabled: !input telegram_enabled
