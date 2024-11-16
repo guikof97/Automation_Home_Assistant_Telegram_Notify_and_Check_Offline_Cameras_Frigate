@@ -1,266 +1,53 @@
-# Monitoramento de Câmeras Offline no Home Assistant
+# Automação Home Assistant: Notificação de Câmeras Offline
 
-Este projeto cria uma automação no Home Assistant para monitoramento e notificação de câmeras de segurança que ficam offline. A automação utiliza o `notify`, mensagens no Telegram e notificações persistentes para informar sobre o estado das câmeras, garantindo que o usuário saiba imediatamente quando uma ou mais câmeras perdem a conexão.
+Este projeto é uma automação para o [Home Assistant](https://www.home-assistant.io/), que monitora o estado de câmeras configuradas no sistema. Ele envia notificações via Telegram, no aplicativo do Home Assistant e na interface de notificações persistentes quando uma ou mais câmeras ficam offline. A automação também verifica periodicamente se as câmeras permanecem offline e notifica novamente, até que todas as câmeras retornem ao estado online.
 
-## Descrição do Código
+---
 
-O código tem como objetivo:
-- Detectar quando uma câmera passa para o estado "unavailable" (offline).
-- Aguardar 1 minuto para garantir que a câmera permaneça offline antes de notificar.
-- Enviar notificações no Telegram, no aplicativo Home Assistant e criar notificações persistentes na interface.
-- Repetir notificações a cada 5 minutos enquanto as câmeras estiverem offline.
-- Enviar notificações quando todas as câmeras voltarem ao estado online.
+## Funcionalidades
 
-### Estrutura do Código
+1. **Detecção de câmeras offline:** A automação monitora o estado de câmeras e identifica quando mudam para `unavailable`, `offline` ou `disconnected`.
+2. **Notificação inicial:** Quando uma ou mais câmeras permanecem offline por mais de 1 minuto, uma notificação é enviada.
+3. **Notificações periódicas:** Enquanto as câmeras estiverem offline, a automação envia notificações a cada 5 minutos.
+4. **Notificação de retorno ao estado online:** Após todas as câmeras voltarem ao estado online, é enviada uma notificação informando o retorno ao estado operacional.
 
-- **Variáveis de Configuração**: Permitem fácil ajuste dos parâmetros, como lista de câmeras monitoradas, `telegram_chat_id`, tempo de atraso inicial e período de verificação.
-- **Gatilho (Trigger)**: Detecta qualquer câmera na lista de `entity_id` que fique offline.
-- **Ações**:
-  - Aguardar o atraso inicial.
-  - Verificar se alguma câmera permanece offline após 1 minuto.
-  - Enviar notificações detalhadas para o Home Assistant, Telegram e notificação persistente.
-  - Repetir essas notificações a cada 5 minutos enquanto houver câmeras offline.
-  - Notificar quando todas as câmeras voltarem ao estado online.
-  
-### Detalhamento das Ações
+---
 
-1. **Atraso Inicial**: Ação de `delay` para aguardar 1 minuto, garantindo que a câmera esteja realmente offline antes de notificar.
-2. **Verificação**: Usa um template para verificar se uma ou mais câmeras estão offline há mais de 1 minuto.
-3. **Notificações**: Envia mensagens detalhadas para `notify.notify`, Telegram e `persistent_notification.create`.
-4. **Verificação Contínua**: Repetição da verificação e notificação a cada 5 minutos enquanto as câmeras estiverem offline.
-5. **Notificação de Restauração**: Notifica quando todas as câmeras voltam ao estado online.
+## Variáveis
 
-## Como Utilizar
+- **`telegram_chat_id`**: ID do chat do Telegram para onde as notificações serão enviadas.
+- **`periodo_verificacao`**: Intervalo de tempo entre as verificações de câmeras offline (padrão: 5 minutos).
+- **`atraso_inicial`**: Tempo de espera inicial para verificar se uma câmera permanece offline (padrão: 1 minuto).
 
-1. **Pré-requisitos**: Ter o Home Assistant configurado com notificações via Telegram.
-2. **Configuração**:
-   - Substitua `telegram_chat_id` pelo seu chat ID.
-   - Ajuste `cameras_para_monitorar` para incluir as câmeras de sua rede.
-3. **Automação**: Copie o código para a configuração de automação do Home Assistant.
+---
 
-## Exemplo de Código
+## Pré-requisitos
+
+- Instalação do [Home Assistant](https://www.home-assistant.io/).
+- Integração configurada do **Telegram Bot** no Home Assistant.
+- Câmeras devidamente configuradas como entidades no Home Assistant.
+
+---
+
+## Configuração
+
+### Substitua no código:
+
+1. `telegram_chat_id`: Adicione o ID do seu chat do Telegram.
+2. `entity_id` das câmeras no campo `triggers`: Inclua as entidades das câmeras que você deseja monitorar.
+
+---
+
+## Exemplo de Automação
+
+Aqui está o código completo da automação:
 
 ```yaml
 alias: Notificar e Verificar Câmeras Offline
 description: >
-  Notifica no Telegram, no aplicativo e na interface do Home Assistant quando câmeras
-  ficam offline, com notificações periódicas enquanto as câmeras estiverem offline.
-
-# Gatilho para ativar a automação quando qualquer câmera na lista ficar offline
-trigger:
-  - platform: state
-    entity_id:
-      - camera.camera1
-      - camera.camera2
-      - camera.camera3
-      - camera.camera4
-      - camera.camera5
-      - camera.camera6
-      - camera.camera7
-      - camera.camera8
-      - camera.camera0_video_doorbell
-    to: unavailable  # Estado que aciona a automação
-
-# Ações a serem executadas quando o gatilho é ativado
-action:
-  # Ação 1: Aguardar o tempo de atraso inicial configurado
-  - delay: "{{ atraso_inicial }}"
-
-  # Ação 2: Verificar se alguma das câmeras especificadas está offline por mais de 1 minuto
-  - condition: template
-    value_template: >
-      {% set cameras_offline = states | selectattr('entity_id', 'in', cameras_para_monitorar) | selectattr('state', 'equalto', 'unavailable') | list %}
-      {% set cameras_offline_maior_1min = cameras_offline | selectattr('last_changed', 'lt', (now() - timedelta(minutes=1))) | list %}
-      {{ cameras_offline_maior_1min | length > 0 }}
-
-  # Ação 3: Enviar uma notificação no Home Assistant sobre as câmeras offline
-  - service: notify.notify
-    data:
-      message: >
-        As seguintes câmeras ficaram offline: \n
-        {% set cameras_offline = states | selectattr('entity_id', 'in', cameras_para_monitorar) | selectattr('state', 'equalto', 'unavailable') | list %}
-        {% for camera in cameras_offline %}
-        - {{ camera.entity_id.split('.')[1].replace('_', ' ') }} - Offline desde 
-        {{ (camera.last_changed | as_datetime | as_local).strftime('%d/%m/%y às %H:%M:%S') }} 
-        ({{ ((as_timestamp(now()) - as_timestamp(camera.last_changed)) / 60) | round(1) }} min) \n
-        {% endfor %}
-
-  # Ação 4: Enviar uma mensagem no Telegram sobre as câmeras offline
-  - service: telegram_bot.send_message
-    data:
-      target: "{{ telegram_chat_id }}"
-      message: >
-        As seguintes câmeras ficaram offline:
-
-        {% set cameras_offline = states | selectattr('entity_id', 'in', cameras_para_monitorar) | selectattr('state', 'equalto', 'unavailable') | list %}
-        {% for camera in cameras_offline %}
-        - *{{ camera.entity_id.split('.')[1].replace('_', ' ') }}* - Offline desde 
-        {{ (camera.last_changed | as_datetime | as_local).strftime('%d/%m/%y às %H:%M:%S') }} 
-        ({{ ((as_timestamp(now()) - as_timestamp(camera.last_changed)) / 60) | round(1) }} min)
-        {% endfor %}
-
-  # Ação 5: Criar uma notificação persistente no Home Assistant sobre as câmeras offline
-  - service: persistent_notification.create
-    data:
-      title: Câmeras Offline
-      message: >
-        As seguintes câmeras ficaram offline:
-
-        {% set cameras_offline = states | selectattr('entity_id', 'in', cameras_para_monitorar) | selectattr('state', 'equalto', 'unavailable') | list %}
-        {% for camera in cameras_offline %}
-        - **{{ camera.entity_id.split('.')[1].replace('_', ' ') }}** - Offline desde 
-        {{ (camera.last_changed | as_datetime | as_local).strftime('%d/%m/%y às %H:%M:%S') }} 
-        ({{ ((as_timestamp(now()) - as_timestamp(camera.last_changed)) / 60) | round(1) }} min)
-        {% endfor %}
-
-  # Ação 6: Aguardar o período de verificação contínua (5 minutos)
-  - delay: "{{ periodo_verificacao }}"
-
-  # Ação 7: Repetir a verificação e notificações enquanto houver câmeras offline
-  - repeat:
-      while:
-        - condition: template
-          value_template: >
-            {% set cameras_offline = states | selectattr('entity_id', 'in', cameras_para_monitorar) | selectattr('state', 'equalto', 'unavailable') | list %}
-            {% set cameras_offline_maior_1min = cameras_offline | selectattr('last_changed', 'lt', (now() - timedelta(minutes=1))) | list %}
-            {{ cameras_offline_maior_1min | length > 0 }}
-      sequence:
-        # Ação 7.1: Enviar notificação no Home Assistant sobre câmeras ainda offline
-        - service: notify.notify
-          data:
-            message: >
-              As seguintes câmeras ainda estão offline: \n
-              {% set cameras_offline = states | selectattr('entity_id', 'in', cameras_para_monitorar) | selectattr('state', 'equalto', 'unavailable') | list %}
-              {% set cameras_offline_maior_1min = cameras_offline | selectattr('last_changed', 'lt', (now() - timedelta(minutes=1))) | list %}
-              {% for camera in cameras_offline_maior_1min %}
-              - {{ camera.entity_id.split('.')[1].replace('_', ' ') }} - Offline desde 
-              {{ (camera.last_changed | as_datetime | as_local).strftime('%d/%m/%y às %H:%M:%S') }} 
-              ({{ ((as_timestamp(now()) - as_timestamp(camera.last_changed)) / 60) | round(1) }} min) \n
-              {% endfor %}
-
-        # Ação 7.2: Enviar mensagem no Telegram sobre câmeras ainda offline
-        - service: telegram_bot.send_message
-          data:
-            target: "{{ telegram_chat_id }}"
-            message: >
-              As seguintes câmeras ainda estão offline:
-
-              {% set cameras_offline = states | selectattr('entity_id', 'in', cameras_para_monitorar) | selectattr('state', 'equalto', 'unavailable') | list %}
-              {% set cameras_offline_maior_1min = cameras_offline | selectattr('last_changed', 'lt', (now() - timedelta(minutes=1))) | list %}
-              {% for camera in cameras_offline_maior_1min %}
-              - *{{ camera.entity_id.split('.')[1].replace('_', ' ') }}* - Offline desde 
-              {{ (camera.last_changed | as_datetime | as_local).strftime('%d/%m/%y às %H:%M:%S') }} 
-              ({{ ((as_timestamp(now()) - as_timestamp(camera.last_changed)) / 60) | round(1) }} min)
-              {% endfor %}
-
-        # Ação 7.3: Criar uma notificação persistente no Home Assistant sobre câmeras ainda offline
-        - service: persistent_notification.create
-          data:
-            title: Câmeras Offline (Verificação Contínua)
-            message: >
-              As seguintes câmeras ainda estão offline:
-
-              {% set cameras_offline = states | selectattr('entity_id', 'in', cameras_para_monitorar) | selectattr('state', 'equalto', 'unavailable') | list %}
-              {% set cameras_offline_maior_1min = cameras_offline | selectattr('last_changed', 'lt', (now() - timedelta(minutes=1))) | list %}
-              {% for camera in cameras_offline_maior_1min %}
-              - **{{ camera.entity_id.split('.')[1].replace('_', ' ') }}** - Offline desde 
-              {{ (camera.last_changed | as_datetime | as_local).strftime('%d/%m/%y às %H:%M:%S') }} 
-              ({{ ((as_timestamp(now()) - as_timestamp(camera.last_changed)) / 60) | round(1) }} min)
-              {% endfor %}
-
-        # Ação 7.4: Aguardar o período de verificação contínua novamente
-        - delay: "{{ periodo_verificacao }}"
-
-  # Ação 8: Notificar que todas as câmeras voltaram ao estado online após a restauração
-  - service: notify.notify
-    data:
-      message: Todas as câmeras estão online.
-
-  # Ação 9: Enviar mensagem no Telegram indicando que todas as câmeras estão online
-  - service: telegram_bot.send_message
-    data:
-      target: "{{ telegram_chat_id }}"
-      message: Todas as câmeras estão *online*.
-
-  # Ação 10: Criar uma notificação persistente indicando que todas as câmeras estão online
-  - service: persistent_notification.create
-    data:
-      title: Estado Operacional Online
-      message: Todas as câmeras estão **online**.
-
-# Definindo variáveis usadas nas ações
-variables:
-  telegram_chat_id: "**************"  # Substitua pelo seu chat_id
-  periodo_verificacao: "00:05:00"  # Período de verificação contínua (5 minutos)
-  atraso_inicial: "00:01:10"  # Atraso inicial para aguardar 1 minuto antes da primeira verificação
-  cameras_para_monitorar:
-    - camera.camera1
-    - camera.camera2
-    - camera.camera3
-    - camera.camera4
-    - camera.camera5
-    - camera.camera6
-    - camera.camera7
-    - camera.camera8
-    - camera.camera0_video_doorbell  # Lista de câmeras para monitorar
-
-# Configurando o modo de execução da automação
-mode: single
-```
-
-
-# Offline Camera Monitoring in Home Assistant
-
-This project creates an automation in Home Assistant to monitor and notify when security cameras go offline. It uses `notify`, Telegram messages, and persistent notifications to alert the user as soon as one or more cameras lose connection.
-
-## Code Description
-
-The purpose of this code is to:
-- Detect when a camera enters the "unavailable" state (offline).
-- Wait 1 minute to ensure the camera remains offline before sending a notification.
-- Send notifications to Telegram, the Home Assistant app, and create persistent notifications in the interface.
-- Repeat notifications every 5 minutes as long as cameras are offline.
-- Notify when all cameras are back online.
-
-### Code Structure
-
-- **Configuration Variables**: Allow easy adjustment of parameters, such as monitored cameras list, `telegram_chat_id`, initial delay time, and verification period.
-- **Trigger**: Detects any camera in the `entity_id` list that goes offline.
-- **Actions**:
-  - Wait for the initial delay.
-  - Check if any camera remains offline for more than 1 minute.
-  - Send detailed notifications to Home Assistant, Telegram, and persistent notifications.
-  - Repeat these notifications every 5 minutes as long as there are offline cameras.
-  - Notify when all cameras return to the online state.
-
-### Action Details
-
-1. **Initial Delay**: `delay` action to wait 1 minute, ensuring the camera is really offline before notifying.
-2. **Verification**: Uses a template to check if one or more cameras are offline for over 1 minute.
-3. **Notifications**: Sends detailed messages to `notify.notify`, Telegram, and `persistent_notification.create`.
-4. **Continuous Verification**: Repeats verification and notification every 5 minutes while cameras are offline.
-5. **Restore Notification**: Notifies when all cameras are back online.
-
-## Usage
-
-1. **Prerequisites**: Have Home Assistant configured with Telegram notifications.
-2. **Configuration**:
-   - Replace `telegram_chat_id` with your chat ID.
-   - Adjust `cameras_para_monitorar` to include the cameras in your network.
-3. **Automation**: Copy the code into your Home Assistant automation configuration.
-
-## Example Code
-
-```yaml
-# Name and Description
-# Automation Name and Description
-alias: Notify and Check Offline Cameras
-description: >
-  Notifies on Telegram, the Home Assistant app, and Home Assistant interface
-  when cameras go offline, with periodic notifications while the cameras
-  remain offline.
-
-# Triggers to activate the automation when any camera in the list goes offline
+  Notifica no Telegram, no aplicativo e na interface do Home Assistant quando
+  câmeras ficam offline, com notificações periódicas enquanto as câmeras
+  estiverem offline.
 triggers:
   - entity_id:
       - camera.camera1
@@ -273,165 +60,282 @@ triggers:
       - camera.camera8
       - camera.camera0_video_doorbell
     to: unavailable
-    trigger: state
-
-# Actions executed when the trigger is activated
+    platform: state
 actions:
-  - delay: "{{ initial_delay }}" # Waits for the configured initial delay
+  - delay: "{{ atraso_inicial }}"
   - condition: template
     value_template: >
-      {% set offline_cameras = states | selectattr('entity_id', 'in',
-      cameras_to_monitor) | selectattr('state', 'equalto', 'unavailable') |
-      list %} {% set offline_cameras_more_than_1min = offline_cameras |
-      selectattr('last_changed', 'lt', (now() - timedelta(minutes=1))) | list %}
-      {{ offline_cameras_more_than_1min | length > 0 }}
-
-  # Notification to the Home Assistant app listing offline cameras
-  - data:
-      message: >
-        The following cameras went offline: \n {% set offline_cameras = states
-        | selectattr('entity_id', 'in', cameras_to_monitor) |
-        selectattr('state', 'equalto', 'unavailable') | list %} {% for camera in
-        offline_cameras %} - {{ camera.entity_id.split('.')[1].replace('_', ' ')
-        }} - Offline since {{ (camera.last_changed | as_datetime |
-        as_local).strftime('%d/%m/%y at %H:%M:%S') }} ({{ ((as_timestamp(now())
-        - as_timestamp(camera.last_changed)) / 60) | round(1) }} min) \n {%
-        endfor %}
-    action: notify.notify
-
-  # Telegram notification with offline camera details
-  - data:
+      {% set cameras_offline = states.camera | selectattr('state', 'in', ['unavailable', 'offline', 'disconnected']) | list %} 
+      {% set cameras_offline_mais_1min = cameras_offline | selectattr('last_changed', 'lt', (now() - timedelta(minutes=1))) | list %} 
+      {{ cameras_offline_mais_1min | length > 0 }}
+  - variables:
+      mensagem_notificacao: >-
+        As seguintes câmeras estão offline:
+        {% set cameras_offline = states.camera | selectattr('state', 'in', ['unavailable', 'offline', 'disconnected']) | list %} {%
+        set cameras_offline_mais_1min = cameras_offline | selectattr('last_changed', 'lt', (now() - timedelta(minutes=1))) | list %} {%
+        for camera in cameras_offline_mais_1min %}
+          - *{{ camera.entity_id.split('.')[1].replace('_', ' ') }}*: {{
+           (camera.last_changed | as_datetime | as_local).strftime('%d/%m/%y às %H:%M:%S') }} ({{
+            ((as_timestamp(now()) - as_timestamp(camera.last_changed)) / 60) | round(1) }} min). {% endfor %}
+  - service: telegram_bot.send_message
+    data:
       target: "{{ telegram_chat_id }}"
-      message: >
-        The following cameras went offline:
-
-        {% set offline_cameras = states | selectattr('entity_id', 'in',
-        cameras_to_monitor) | selectattr('state', 'equalto', 'unavailable')
-        | list %} {% for camera in offline_cameras %} - *{{
-        camera.entity_id.split('.')[1].replace('_', ' ') }}* - Offline since {{
-        (camera.last_changed | as_datetime | as_local).strftime('%d/%m/%y at
-        %H:%M:%S') }} ({{ ((as_timestamp(now()) -
-        as_timestamp(camera.last_changed)) / 60) | round(1) }} min)
-
-        {% endfor %}
-    action: telegram_bot.send_message
-
-  # Persistent notification on Home Assistant interface
-  - data:
-      title: Offline Cameras
-      message: >
-        The following cameras went offline:
-
-        {% set offline_cameras = states | selectattr('entity_id', 'in',
-        cameras_to_monitor) | selectattr('state', 'equalto', 'unavailable')
-        | list %} {% for camera in offline_cameras %} - **{{
-        camera.entity_id.split('.')[1].replace('_', ' ') }}** - Offline since
-        {{ (camera.last_changed | as_datetime | as_local).strftime('%d/%m/%y at
-        %H:%M:%S') }} ({{ ((as_timestamp(now()) -
-        as_timestamp(camera.last_changed)) / 60) | round(1) }} min)
-
-        {% endfor %}
-    action: persistent_notification.create
-
-  # Waits for the verification period
-  - delay: "{{ verification_period }}"
-
-  # Repeats notifications every 5 minutes as long as there are offline cameras
+      message: "{{ mensagem_notificacao }}"
+  - service: persistent_notification.create
+    data:
+      title: Câmeras Offline
+      message: "{{ mensagem_notificacao | replace('*', '**') }}"
+  - service: notify.notify
+    data:
+      message: |-
+        {{ mensagem_notificacao | replace('*', '') }}
+  - delay: "{{ periodo_verificacao }}"
   - repeat:
       while:
         - condition: template
           value_template: >
-            {% set offline_cameras = states | selectattr('entity_id', 'in',
-            cameras_to_monitor) | selectattr('state', 'equalto',
-            'unavailable') | list %} {% set offline_cameras_more_than_1min =
-            offline_cameras | selectattr('last_changed', 'lt', (now() -
-            timedelta(minutes=1))) | list %} {{ offline_cameras_more_than_1min |
-            length > 0 }}
+            {% set cameras_offline = states.camera | selectattr('state', 'in', ['unavailable', 'offline', 'disconnected']) | list %} 
+            {% set cameras_offline_mais_1min = cameras_offline | selectattr('last_changed', 'lt', (now() - timedelta(minutes=1))) | list %} 
+            {{ cameras_offline_mais_1min | length > 0 }}
       sequence:
-        - data:
-            message: >
-              The following cameras are still offline: \n {% set
-              offline_cameras = states | selectattr('entity_id', 'in',
-              cameras_to_monitor) | selectattr('state', 'equalto',
-              'unavailable') | list %} {% set offline_cameras_more_than_1min =
-              offline_cameras | selectattr('last_changed', 'lt', (now() -
-              timedelta(minutes=1))) | list %} {% for camera in
-              offline_cameras_more_than_1min %} - {{
-              camera.entity_id.split('.')[1].replace('_', ' ') }} - Offline since
-              {{ (camera.last_changed | as_datetime |
-              as_local).strftime('%d/%m/%y at %H:%M:%S') }} ({{ ((as_timestamp(now()) -
-              as_timestamp(camera.last_changed)) / 60) | round(1) }} min) \n
-              {% endfor %}
-          action: notify.notify
-
-        - data:
+        - variables:
+            mensagem_notificacao2: >-
+              As seguintes câmeras ainda estão offline:
+              {% set cameras_offline = states.camera | selectattr('state', 'in', ['unavailable', 'offline', 'disconnected']) | list %} {%
+              set cameras_offline_mais_1min = cameras_offline | selectattr('last_changed', 'lt', (now() - timedelta(minutes=1))) | list %} {%
+              for camera in cameras_offline_mais_1min %}
+                - *{{ camera.entity_id.split('.')[1].replace('_', ' ') }}*: {{
+                 (camera.last_changed | as_datetime | as_local).strftime('%d/%m/%y às %H:%M:%S') }} ({{
+                  ((as_timestamp(now()) - as_timestamp(camera.last_changed)) / 60) | round(1) }} min). {% endfor %}
+        - service: telegram_bot.send_message
+          data:
             target: "{{ telegram_chat_id }}"
-            message: >
+            message: "{{ mensagem_notificacao2 }}"
+        - service: persistent_notification.create
+          data:
+            title: Câmeras Offline (Verificação Contínua)
+            message: "{{ mensagem_notificacao2 | replace('*', '**') }}"
+        - service: notify.notify
+          data:
+            message: |-
+              {{ mensagem_notificacao2 | replace('*', '') }}
+        - delay: "{{ periodo_verificacao }}"
+  - service: notify.notify
+    data:
+      message: Todas as câmeras estão online.
+  - service: telegram_bot.send_message
+    data:
+      target: "{{ telegram_chat_id }}"
+      message: Todas as câmeras estão *online*.
+  - service: persistent_notification.create
+    data:
+      title: Estado Operacional Online
+      message: Todas as câmeras estão **online**.
+variables:
+  telegram_chat_id: "SEU_CHAT_ID"
+  periodo_verificacao: "00:05:00"
+  atraso_inicial: "00:01:05"
+mode: single
+```
+---
+
+## Funcionamento do Código
+
+1. **Gatilhos (`triggers`)**: 
+   - Monitora câmeras específicas e dispara a automação quando alguma delas muda para o estado `unavailable`.
+   
+2. **Ação de atraso inicial (`delay`)**: 
+   - Garante que o estado offline seja mantido por pelo menos 1 minuto antes de processar notificações.
+
+3. **Verificação de estado offline (`condition`)**: 
+   - Confirma que uma ou mais câmeras estão offline há mais de 1 minuto.
+
+4. **Notificações**:
+   - **Telegram**: Envia uma mensagem detalhada sobre as câmeras offline.
+   - **Notificação persistente**: Aparece na interface do Home Assistant como notificação permanente.
+   - **Notificação no app**: Enviada como alerta no aplicativo do Home Assistant.
+
+5. **Repetição periódica (`repeat`)**: 
+   - Notifica novamente enquanto as câmeras permanecerem offline.
+
+6. **Notificação de retorno (`notify`)**: 
+   - Informa quando todas as câmeras voltam ao estado online.
+
+---
+
+## Licença
+
+Este projeto é fornecido sob a licença MIT. Consulte o arquivo [LICENSE](LICENSE) para mais detalhes.
+
+
+
+---
+
+# Home Assistant Automation: Offline Camera Notification
+
+This project is an automation for [Home Assistant](https://www.home-assistant.io/), which monitors the state of cameras configured in the system. It sends notifications via Telegram, the Home Assistant app, and the persistent notification interface when one or more cameras go offline. The automation also periodically checks if the cameras remain offline and sends notifications again until all cameras return to the online state.
+
+---
+
+## Features
+
+1. **Offline Camera Detection:** The automation monitors the state of cameras and identifies when they change to `unavailable`, `offline`, or `disconnected`.
+2. **Initial Notification:** When one or more cameras have been offline for over 1 minute, a notification is sent.
+3. **Periodic Notifications:** As long as the cameras are offline, the automation sends notifications every 5 minutes.
+4. **Return to Online State Notification:** Once all cameras return to the online state, a notification is sent indicating the return to operational status.
+
+---
+
+## Variables
+
+- **`telegram_chat_id`**: The Telegram chat ID where the notifications will be sent.
+- **`verification_interval`**: Time interval between checks for offline cameras (default: 5 minutes).
+- **`initial_delay`**: The initial waiting time before checking if a camera remains offline (default: 1 minute).
+
+---
+
+## Prerequisites
+
+- [Home Assistant](https://www.home-assistant.io/) installed.
+- Telegram Bot integration configured in Home Assistant.
+- Cameras properly configured as entities in Home Assistant.
+
+---
+
+## Configuration
+
+### Replace the following in the code:
+
+1. `telegram_chat_id`: Add your own Telegram chat ID.
+2. Camera `entity_id` in the `triggers` section: Include the entities of the cameras you want to monitor.
+
+---
+
+## Example Automation
+
+Here is the full automation code:
+
+```yaml
+alias: Notify and Check Offline Cameras
+description: >
+  Sends notifications on Telegram, the app, and the Home Assistant interface
+  when cameras go offline, with periodic notifications while cameras are offline.
+triggers:
+  - entity_id:
+      - camera.camera1
+      - camera.camera2
+      - camera.camera3
+      - camera.camera4
+      - camera.camera5
+      - camera.camera6
+      - camera.camera7
+      - camera.camera8
+      - camera.camera0_video_doorbell
+    to: unavailable
+    platform: state
+actions:
+  - delay: "{{ initial_delay }}"
+  - condition: template
+    value_template: >
+      {% set offline_cameras = states.camera | selectattr('state', 'in', ['unavailable', 'offline', 'disconnected']) | list %} 
+      {% set offline_cameras_older_than_1min = offline_cameras | selectattr('last_changed', 'lt', (now() - timedelta(minutes=1))) | list %} 
+      {{ offline_cameras_older_than_1min | length > 0 }}
+  - variables:
+      notification_message: >-
+        The following cameras are offline:
+        {% set offline_cameras = states.camera | selectattr('state', 'in', ['unavailable', 'offline', 'disconnected']) | list %} {%
+        set offline_cameras_older_than_1min = offline_cameras | selectattr('last_changed', 'lt', (now() - timedelta(minutes=1))) | list %} {%
+        for camera in offline_cameras_older_than_1min %}
+          - *{{ camera.entity_id.split('.')[1].replace('_', ' ') }}*: {{
+           (camera.last_changed | as_datetime | as_local).strftime('%d/%m/%y at %H:%M:%S') }} ({{
+            ((as_timestamp(now()) - as_timestamp(camera.last_changed)) / 60) | round(1) }} min). {% endfor %}
+  - service: telegram_bot.send_message
+    data:
+      target: "{{ telegram_chat_id }}"
+      message: "{{ notification_message }}"
+  - service: persistent_notification.create
+    data:
+      title: Offline Cameras
+      message: "{{ notification_message | replace('*', '**') }}"
+  - service: notify.notify
+    data:
+      message: |-
+        {{ notification_message | replace('*', '') }}
+  - delay: "{{ verification_interval }}"
+  - repeat:
+      while:
+        - condition: template
+          value_template: >
+            {% set offline_cameras = states.camera | selectattr('state', 'in', ['unavailable', 'offline', 'disconnected']) | list %} 
+            {% set offline_cameras_older_than_1min = offline_cameras | selectattr('last_changed', 'lt', (now() - timedelta(minutes=1))) | list %} 
+            {{ offline_cameras_older_than_1min | length > 0 }}
+      sequence:
+        - variables:
+            notification_message2: >-
               The following cameras are still offline:
-
-              {% set offline_cameras = states | selectattr('entity_id', 'in',
-              cameras_to_monitor) | selectattr('state', 'equalto',
-              'unavailable') | list %} {% set offline_cameras_more_than_1min =
-              offline_cameras | selectattr('last_changed', 'lt', (now() -
-              timedelta(minutes=1))) | list %} {% for camera in
-              offline_cameras_more_than_1min %} - *{{
-              camera.entity_id.split('.')[1].replace('_', ' ') }}* - Offline
-              since {{ (camera.last_changed | as_datetime |
-              as_local).strftime('%d/%m/%y at %H:%M:%S') }} ({{ ((as_timestamp(now()) -
-              as_timestamp(camera.last_changed)) / 60) | round(1) }} min)
-
-              {% endfor %}
-          action: telegram_bot.send_message
-
-        - data:
-            title: Offline Cameras (Continuous Verification)
-            message: >
-              The following cameras are still offline:
-
-              {% set offline_cameras = states | selectattr('entity_id', 'in',
-              cameras_to_monitor) | selectattr('state', 'equalto',
-              'unavailable') | list %} {% set offline_cameras_more_than_1min =
-              offline_cameras | selectattr('last_changed', 'lt', (now() -
-              timedelta(minutes=1))) | list %} {% for camera in
-              offline_cameras_more_than_1min %} - **{{
-              camera.entity_id.split('.')[1].replace('_', ' ') }}** - Offline
-              since {{ (camera.last_changed | as_datetime |
-              as_local).strftime('%d/%m/%y at %H:%M:%S') }} ({{ ((as_timestamp(now()) -
-              as_timestamp(camera.last_changed)) / 60) | round(1) }} min)
-
-              {% endfor %}
-          action: persistent_notification.create
-
-        - delay: "{{ verification_period }}"
-
-  # Notify that all cameras are online again
-  - data:
+              {% set offline_cameras = states.camera | selectattr('state', 'in', ['unavailable', 'offline', 'disconnected']) | list %} {%
+              set offline_cameras_older_than_1min = offline_cameras | selectattr('last_changed', 'lt', (now() - timedelta(minutes=1))) | list %} {%
+              for camera in offline_cameras_older_than_1min %}
+                - *{{ camera.entity_id.split('.')[1].replace('_', ' ') }}*: {{
+                 (camera.last_changed | as_datetime | as_local).strftime('%d/%m/%y at %H:%M:%S') }} ({{
+                  ((as_timestamp(now()) - as_timestamp(camera.last_changed)) / 60) | round(1) }} min). {% endfor %}
+        - service: telegram_bot.send_message
+          data:
+            target: "{{ telegram_chat_id }}"
+            message: "{{ notification_message2 }}"
+        - service: persistent_notification.create
+          data:
+            title: Offline Cameras (Continuous Check)
+            message: "{{ notification_message2 | replace('*', '**') }}"
+        - service: notify.notify
+          data:
+            message: |-
+              {{ notification_message2 | replace('*', '') }}
+        - delay: "{{ verification_interval }}"
+  - service: notify.notify
+    data:
       message: All cameras are online.
-    action: notify.notify
-
-  - data:
+  - service: telegram_bot.send_message
+    data:
       target: "{{ telegram_chat_id }}"
       message: All cameras are *online*.
-    action: telegram_bot.send_message
-
-  - data:
+  - service: persistent_notification.create
+    data:
       title: Operational State Online
       message: All cameras are **online**.
-    action: persistent_notification.create
-
-# Variables
 variables:
-  telegram_chat_id: "-***************"
-  verification_period: "00:05:00"
-  initial_delay: "00:01:10"
-  cameras_to_monitor:
-    - camera.camera1
-    - camera.camera2
-    - camera.camera3
-    - camera.camera4
-    - camera.camera5
-    - camera.camera6
-    - camera.camera7
-    - camera.camera8
-    - camera.camera0_video_doorbell
+  telegram_chat_id: "YOUR_CHAT_ID"
+  verification_interval: "00:05:00"
+  initial_delay: "00:01:05"
 mode: single
+```
+---
+
+## Code Functionality
+
+1. **Triggers (`triggers`)**: 
+   - Monitors specific cameras and triggers the automation when any of them change to the `unavailable` state.
+   
+2. **Initial Delay (`delay`)**: 
+   - Ensures that the offline state is maintained for at least 1 minute before processing notifications.
+
+3. **Offline State Check (`condition`)**: 
+   - Verifies that one or more cameras have been offline for more than 1 minute.
+
+4. **Notifications**:
+   - **Telegram**: Sends a detailed message about the offline cameras.
+   - **Persistent Notification**: Appears in the Home Assistant interface as a permanent notification.
+   - **App Notification**: Sends an alert to the Home Assistant app.
+
+5. **Periodic Repetition (`repeat`)**: 
+   - Sends additional notifications as long as the cameras are offline.
+
+6. **Return to Online Notification (`notify`)**: 
+   - Informs when all cameras have returned to the online state.
+
+---
+
+## License
+
+This project is provided under the MIT license. See the [LICENSE](LICENSE) file for more details.
+
