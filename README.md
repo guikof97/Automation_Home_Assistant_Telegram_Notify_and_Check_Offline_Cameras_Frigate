@@ -1,4 +1,4 @@
-# Automação Home Assistant: Notificação de Câmeras Offline Home Assistant e Frigate
+# Automação Home Assistant: Notificação de Câmeras Offline do Home Assistant para o app e Telegram
 
 Este projeto é uma automação para o [Home Assistant](https://www.home-assistant.io/), que monitora o estado de câmeras configuradas no sistema. Ele envia notificações via Telegram, no aplicativo do Home Assistant e na interface de notificações persistentes quando uma ou mais câmeras ficam offline. A automação também verifica periodicamente se as câmeras permanecem offline e notifica novamente, até que todas as câmeras retornem ao estado online.
 
@@ -171,7 +171,7 @@ Este projeto é fornecido sob a licença MIT. Consulte o arquivo [LICENSE](LICEN
 
 ---
 
-# Home Assistant Automation: Offline Camera Notification Home Assistant and Frigate
+# Home Assistant Automation: Home Assistant Offline Camera Notification for App and Telegram
 
 This project is an automation for [Home Assistant](https://www.home-assistant.io/), which monitors the state of cameras configured in the system. It sends notifications via Telegram, the Home Assistant app, and the persistent notification interface when one or more cameras go offline. The automation also periodically checks if the cameras remain offline and sends notifications again until all cameras return to the online state.
 
