@@ -1,5 +1,5 @@
 blueprint:
-  name: Notificar e Monitorar Câmeras Offline com Telegram Opcional
+  name: Notificar e Monitorar Câmeras Offline com Telegram Opcional - BETA
   description: Envia notificações no Telegram, no app do Home Assistant e na interface do Home Assistant quando as câmeras ficam offline, com notificações periódicas enquanto as câmeras permanecerem offline. As notificações do Telegram são opcionais e só serão enviadas se o interruptor do Telegram estiver ativado.
   domain: automation
   input:
