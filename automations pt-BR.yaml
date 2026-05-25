@@ -42,7 +42,7 @@ actions:
   # Notifica pelo Telegram
   - service: telegram_bot.send_message
     data:
-      target: "{{ telegram_chat_id }}"
+      chat_id: "{{ telegram_chat_id }}"
       message: "{{ mensagem_notificacao }}"
   
   # Notificação persistente na interface do Home Assistant
@@ -80,7 +80,7 @@ actions:
         # Notifica pelo Telegram
         - service: telegram_bot.send_message
           data:
-            target: "{{ telegram_chat_id }}"
+            chat_id: "{{ telegram_chat_id }}"
             message: "{{ mensagem_notificacao2 }}"
         # Notificação persistente
         - service: persistent_notification.create
@@ -100,7 +100,7 @@ actions:
       message: Todas as câmeras estão online.
   - service: telegram_bot.send_message
     data:
-      target: "{{ telegram_chat_id }}"
+      chat_id: "{{ telegram_chat_id }}"
       message: Todas as câmeras estão *online*.
   - service: persistent_notification.create
     data:
