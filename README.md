@@ -79,7 +79,7 @@ actions:
             ((as_timestamp(now()) - as_timestamp(camera.last_changed)) / 60) | round(1) }} min). {% endfor %}
   - service: telegram_bot.send_message
     data:
-      target: "{{ telegram_chat_id }}"
+      chat_id: "{{ telegram_chat_id }}"
       message: "{{ mensagem_notificacao }}"
   - service: persistent_notification.create
     data:
@@ -109,7 +109,7 @@ actions:
                   ((as_timestamp(now()) - as_timestamp(camera.last_changed)) / 60) | round(1) }} min). {% endfor %}
         - service: telegram_bot.send_message
           data:
-            target: "{{ telegram_chat_id }}"
+            chat_id: "{{ telegram_chat_id }}"
             message: "{{ mensagem_notificacao2 }}"
         - service: persistent_notification.create
           data:
@@ -125,7 +125,7 @@ actions:
       message: Todas as câmeras estão online.
   - service: telegram_bot.send_message
     data:
-      target: "{{ telegram_chat_id }}"
+      chat_id: "{{ telegram_chat_id }}"
       message: Todas as câmeras estão *online*.
   - service: persistent_notification.create
     data:
@@ -251,7 +251,7 @@ actions:
             ((as_timestamp(now()) - as_timestamp(camera.last_changed)) / 60) | round(1) }} min). {% endfor %}
   - service: telegram_bot.send_message
     data:
-      target: "{{ telegram_chat_id }}"
+      chat_id: "{{ telegram_chat_id }}"
       message: "{{ notification_message }}"
   - service: persistent_notification.create
     data:
@@ -281,7 +281,7 @@ actions:
                   ((as_timestamp(now()) - as_timestamp(camera.last_changed)) / 60) | round(1) }} min). {% endfor %}
         - service: telegram_bot.send_message
           data:
-            target: "{{ telegram_chat_id }}"
+            chat_id: "{{ telegram_chat_id }}"
             message: "{{ notification_message2 }}"
         - service: persistent_notification.create
           data:
@@ -297,7 +297,7 @@ actions:
       message: All cameras are online.
   - service: telegram_bot.send_message
     data:
-      target: "{{ telegram_chat_id }}"
+      chat_id: "{{ telegram_chat_id }}"
       message: All cameras are *online*.
   - service: persistent_notification.create
     data:
